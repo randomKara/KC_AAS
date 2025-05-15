@@ -16,7 +16,13 @@ Ce projet met en place une solution d'authentification centralisée en utilisant
 ## Installation
 
 1.  Clonez le dépôt.
-2.  Exécutez `docker compose up --build` pour démarrer les services.
+2.  Ajoutez les lignes suivantes à votre fichier `/etc/hosts` :
+
+    ```
+    127.0.0.1 authentik
+    127.0.0.1 dex
+    ```
+3.  Exécutez `docker compose up --build` pour démarrer les services.
 
 ## Configuration
 
