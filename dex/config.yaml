@@ -1,0 +1,42 @@
+issuer: http://dex:5556/dex
+
+storage:
+  type: memory
+
+web:
+  http: 0.0.0.0:5556
+
+staticClients:
+- id: flask-app
+  redirectURIs:
+  - 'http://localhost:5000/callback'
+  name: 'Flask App'
+  secret: flask-app-secret
+
+connectors:
+- type: oidc
+  id: keycloak
+  name: Keycloak
+  config:
+    issuer: http://keycloak:8080/realms/KC_AAS
+    clientID: dex-client
+    clientSecret: dex-client-secret
+    redirectURI: http://dex:5556/dex/callback
+    insecureSkipVerify: true
+    # Le claim à utiliser pour les groupes
+    claimMapping:
+      groups: groups
+      username: preferred_username
+      email: email
+      name: name
+
+# Activation des options supplémentaires
+enablePasswordDB: false
+oauth2:
+  responseTypes: ["code", "token", "id_token"]
+  skipApprovalScreen: true
+
+# Configuration des logs
+logger:
+  level: "debug"
+  format: "text" 
