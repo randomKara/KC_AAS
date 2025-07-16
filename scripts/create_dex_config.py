@@ -6,6 +6,7 @@ import random
 import string
 import sys
 import yaml
+import subprocess
 
 def parse_arguments():
     """Parse les arguments de ligne de commande."""
@@ -35,6 +36,9 @@ def parse_arguments():
     parser.add_argument("--storage-type", default="memory", choices=["memory", "sqlite3", "postgres", "mysql"], 
                      help="Type de stockage pour DEX")
     parser.add_argument("--storage-config", help="Configuration JSON pour le stockage (selon le type)")
+    
+    # Paramètres Docker
+    parser.add_argument("--docker-network", default="auth-network", help="Nom du réseau Docker à utiliser (optionnel, détecté automatiquement si non fourni)")
     
     return parser.parse_args()
 
@@ -72,6 +76,9 @@ def get_keycloak_registration_command(args, client_secret):
     
     # Si un secret est fourni, utiliser l'option --quiet pour juste afficher le nouveau secret
     cmd.append("--quiet")
+
+    if client_secret:
+        cmd.append(f"--client-secret \"{client_secret}\"")
     
     return " \\\n    ".join(cmd)
 
@@ -92,7 +99,7 @@ def generate_dex_config(args, client_secret):
             "skipApprovalScreen": args.oauth_skip_approval_screen,
             "responseTypes": ["code", "token", "id_token"]
         },
-        "connectors": [
+        "connectors": 
             {
                 "type": "oidc",
                 "id": f"keycloak-{args.keycloak_realm}",
@@ -112,8 +119,7 @@ def generate_dex_config(args, client_secret):
                         "email": "email"
                     }
                 }
-            }
-        ],
+            },
         "staticClients": []  # Peut être rempli avec des clients statiques si nécessaire
     }
     
@@ -141,6 +147,9 @@ def generate_dex_config(args, client_secret):
 def main():
     args = parse_arguments()
     
+    # Détecter ou utiliser le réseau Docker fourni
+    docker_network = args.docker_network # Use directly the provided network
+
     # Générer ou utiliser le secret client fourni
     client_secret = args.client_secret or generate_random_secret()
     
@@ -154,7 +163,7 @@ def main():
     print("\n=== COMMANDE D'ENREGISTREMENT KEYCLOAK ===")
     print(f"# Exécutez cette commande pour enregistrer le client dans Keycloak:")
     print(keycloak_cmd)
-    print("\n# Le secret du client sera affiché après l'exécution de la commande.")
+    print("\n# Le secret du client sera affiché après l'exécution de la commande et sera utilisé dans la configuration DEX")
     print(f"# Si vous souhaitez utiliser un secret spécifique, ajoutez-le manuellement à la configuration DEX.")
     
     print("\n=== CONFIGURATION DEX ===")
@@ -165,6 +174,7 @@ def main():
     print("# Pour démarrer un conteneur DEX avec cette configuration:")
     print(f"docker run -d \\")
     print(f"  --name dex-{args.dex_name} \\")
+    print(f"  --network {docker_network} \\")  # Ajout du réseau Docker
     print(f"  -p {args.dex_port}:{args.dex_port} \\")
     print(f"  -v /chemin/vers/config.yaml:/etc/dex/config.yaml \\")
     if args.dex_tls_cert and args.dex_tls_key:
@@ -172,6 +182,9 @@ def main():
         print(f"  -v /chemin/vers/key:/etc/dex/tls.key \\")
     print(f"  quay.io/dexidp/dex:latest \\")
     print(f"  dex serve /etc/dex/config.yaml")
+    
+    print(f"\n# Note: Le réseau Docker '{docker_network}' sera utilisé pour la communication avec Keycloak.")
+    print("# Si le réseau n'existe pas, créez-le avec: docker network create " + docker_network)
     
     return 0
 

@@ -1,0 +1,40 @@
+connectors:
+  - config:
+      claimMapping:
+        email: email
+        groups: groups
+        name: name
+      clientID: dex-broker
+      clientSecret: 2m4CWF0rSrr5H1CeRvgnD82bv4QnNfVn
+      insecureSkipVerify: true
+      issuer: http://keycloak:8080/realms/KC_AAS
+      redirectURI: http://broker:5556/callback
+      scopes:
+      - openid
+      - profile
+      - email
+      - groups
+      userIDKey: sub
+      userNameKey: preferred_username
+    id: keycloak-KC_AAS
+    name: Keycloak KC_AAS
+    type: oidc
+issuer: http://broker:5556
+oauth2:
+  responseTypes:
+  - code
+  - token
+  - id_token
+  skipApprovalScreen: false
+
+staticClients:
+- id: flask-app
+  redirectURIs:
+  - 'http://localhost:5000/callback'
+  name: 'Flask App'
+  secret: flask-app-secret
+  
+storage:
+  type: memory
+web:
+  http: 0.0.0.0:5556

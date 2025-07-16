@@ -1,0 +1,36 @@
+# Requirements pour KC_AAS - Scripts Python
+# ============================================
+# 
+# Ces dépendances sont nécessaires pour faire fonctionner tous les scripts Python
+# du projet KC_AAS, incluant la démonstration proof of work.
+#
+# Installation: pip install -r requirements.txt
+
+# Communication HTTP/HTTPS
+requests>=2.31.0
+
+# Gestion de certificats SSL
+urllib3>=1.26.0
+
+# Lecture/écriture de fichiers YAML (pour la configuration Dex)
+PyYAML>=6.0
+
+# Parsing d'arguments en ligne de commande (déjà inclus dans Python standard)
+argparse
+
+# Gestion JSON (déjà inclus dans Python standard)
+# json
+
+# Gestion des processus système (déjà inclus dans Python standard)
+# subprocess
+
+# Gestion du temps et dates (déjà inclus dans Python standard)
+# datetime
+# time
+
+# Gestion des systèmes de fichiers (déjà inclus dans Python standard)
+# os
+# sys
+
+# Outils supplémentaires pour les scripts avancés
+colorama>=0.4.6  # Pour les couleurs cross-platform (alternative aux codes ANSI) 

@@ -19,8 +19,8 @@ connectors:
   name: Keycloak
   config:
     issuer: http://keycloak:8080/realms/KC_AAS
-    clientID: dex-client
-    clientSecret: dex-client-secret
+    clientID: dex-dex
+    clientSecret: SEm5tLhgVuTuz7U20ZccxmwGJp8TjxFm
     redirectURI: http://dex:5556/dex/callback
     insecureSkipVerify: true
     # Le claim à utiliser pour les groupes

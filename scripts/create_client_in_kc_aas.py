@@ -40,14 +40,19 @@ def parse_arguments():
                       help="Active le flux standard")
     parser.add_argument("--enable-implicit-flow", action="store_true", 
                       help="Active le flux implicite")
-    parser.add_argument("--enable-service-accounts", action="store_true", default=True, 
-                      help="Active les comptes de service")
-    parser.add_argument("--enable-authorization", action="store_true", default=True, 
-                      help="Active les services d'autorisation")
+
+    # Ajout de l'argument client-secret
+    parser.add_argument("--client-secret", help="Secret du client")
     
-    # Autres options
-    parser.add_argument("--no-wait", action="store_true", help="Ne pas attendre avant de démarrer")
-    parser.add_argument("--quiet", action="store_true", help="Mode silencieux (moins de logs)")
+    # Paramètres avancés
+    parser.add_argument("--enable-service-accounts", action="store_true", 
+                      help="Active les comptes de service")
+    parser.add_argument("--enable-authorization", action="store_true", 
+                      help="Active l'autorisation (RBAC)")
+    parser.add_argument("--no-wait", action="store_true", 
+                      help="Ne pas attendre la fin de la création du client")
+    parser.add_argument("--quiet", action="store_true", 
+                      help="Mode silencieux (affiche seulement le secret du client)")
     
     return parser.parse_args()
 
@@ -256,6 +261,10 @@ def main():
         client_data["rootUrl"] = args.root_url
     if args.base_url:
         client_data["baseUrl"] = args.base_url
+    
+    # Ajouter le secret si fourni et le client n'est pas public
+    if args.client_secret and not client_data["publicClient"]:
+        client_data["secret"] = args.client_secret
     
     # 3. Créer le client dans le realm cible
     client_uuid = create_client(token, args.keycloak_url, args.realm, client_data, args.quiet)
