@@ -17,20 +17,3 @@ PyYAML>=6.0
 
 # Parsing d'arguments en ligne de commande (déjà inclus dans Python standard)
 argparse
-
-# Gestion JSON (déjà inclus dans Python standard)
-# json
-
-# Gestion des processus système (déjà inclus dans Python standard)
-# subprocess
-
-# Gestion du temps et dates (déjà inclus dans Python standard)
-# datetime
-# time
-
-# Gestion des systèmes de fichiers (déjà inclus dans Python standard)
-# os
-# sys
-
-# Outils supplémentaires pour les scripts avancés
-colorama>=0.4.6  # Pour les couleurs cross-platform (alternative aux codes ANSI) 

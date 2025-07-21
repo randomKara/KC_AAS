@@ -43,9 +43,7 @@ Wait for Keycloak to be fully started (approximately 1-2 minutes).
 Use the `create_dex_config.py` script to generate the Dex configuration and register the client in Keycloak:
 
 ```bash
-cd scripts/
-
-python3 create_dex_config.py \
+python3 scripts/create_dex_config.py \
   --dex-name dex \
   --dex-issuer-url http://dex:5556 \
   --keycloak-url http://keycloak:8080 \
@@ -54,7 +52,7 @@ python3 create_dex_config.py \
   --static-client-secret flask-app-secret \
   --static-client-redirect-uris http://localhost:5000/callback \
   --oauth-skip-approval-screen \
-  --file ../dex/config.yaml
+  --file dex/config.yaml
 ```
 
 #### create_dex_config.py - Complete Arguments Reference
@@ -180,7 +178,7 @@ docker run -d \
   --name dex \
   --network auth-network \
   -p 5556:5556 \
-  -v $(pwd)/../dex/config.yaml:/etc/dex/config.yaml \
+  -v $(pwd)/dex/config.yaml:/etc/dex/config.yaml \
   ghcr.io/dexidp/dex:v2.37.0 \
   dex serve /etc/dex/config.yaml
 ```
@@ -192,7 +190,7 @@ docker run -d \
   --name dex \
   --network auth-network \
   -p 443:443 \
-  -v $(pwd)/../dex/config.yaml:/etc/dex/config.yaml \
+  -v $(pwd)/dex/config.yaml:/etc/dex/config.yaml \
   -v /path/to/cert:/etc/dex/tls.crt \
   -v /path/to/key:/etc/dex/tls.key \
   ghcr.io/dexidp/dex:v2.37.0 \
