@@ -37,8 +37,34 @@ def parse_arguments():
                      help="Type de stockage pour DEX")
     parser.add_argument("--storage-config", help="Configuration JSON pour le stockage (selon le type)")
     
+    # Nouveaux paramètres pour staticClients
+    parser.add_argument("--static-client-id", help="ID du client statique (ex: flask-app)")
+    parser.add_argument("--static-client-name", help="Nom du client statique (ex: Flask App)")
+    parser.add_argument("--static-client-secret", help="Secret du client statique")
+    parser.add_argument("--static-client-redirect-uris", nargs='+', help="URIs de redirection pour le client statique")
+    
+    # Paramètres de logging
+    parser.add_argument("--log-level", default="debug", choices=["debug", "info", "warn", "error"], help="Niveau de log DEX")
+    parser.add_argument("--log-format", default="text", choices=["text", "json"], help="Format des logs DEX")
+    
+    # Paramètres de base de données de mots de passe
+    parser.add_argument("--enable-password-db", action="store_true", help="Activer la base de données de mots de passe locale")
+    
+    # Paramètres OAuth2 avancés
+    parser.add_argument("--oauth-response-types", nargs='+', default=["code", "token", "id_token"], 
+                     help="Types de réponse OAuth2 supportés")
+    
+    # Paramètres de mapping des claims
+    parser.add_argument("--claim-groups", default="groups", help="Claim pour les groupes")
+    parser.add_argument("--claim-username", default="preferred_username", help="Claim pour le nom d'utilisateur")
+    parser.add_argument("--claim-email", default="email", help="Claim pour l'email")
+    parser.add_argument("--claim-name", default="name", help="Claim pour le nom complet")
+    
     # Paramètres Docker
     parser.add_argument("--docker-network", default="auth-network", help="Nom du réseau Docker à utiliser (optionnel, détecté automatiquement si non fourni)")
+    
+    # Paramètres de sortie
+    parser.add_argument("--file", help="Fichier de sortie pour sauvegarder la configuration YAML (ex: dex/config.yaml)")
     
     return parser.parse_args()
 
@@ -49,7 +75,7 @@ def generate_random_secret(length=32):
 
 def get_keycloak_registration_command(args, client_secret):
     """Génère la commande pour enregistrer le client dans Keycloak."""
-    client_id = args.client_id or f"dex-{args.dex_name}"
+    client_id = args.client_id or args.dex_name
     dex_issuer = args.dex_issuer_url or f"http://{args.dex_name}:{args.dex_port}"
     redirect_uris = [
         f"{dex_issuer}/callback",
@@ -84,7 +110,7 @@ def get_keycloak_registration_command(args, client_secret):
 
 def generate_dex_config(args, client_secret):
     """Génère la configuration DEX basée sur les arguments fournis."""
-    client_id = args.client_id or f"dex-{args.dex_name}"
+    client_id = args.client_id or args.dex_name
     dex_issuer = args.dex_issuer_url or f"http://{args.dex_name}:{args.dex_port}"
     
     config = {
@@ -94,33 +120,59 @@ def generate_dex_config(args, client_secret):
         },
         "web": {
             "http": f"{args.dex_host}:{args.dex_port}"
-        },
-        "oauth2": {
-            "skipApprovalScreen": args.oauth_skip_approval_screen,
-            "responseTypes": ["code", "token", "id_token"]
-        },
-        "connectors": 
-            {
-                "type": "oidc",
-                "id": f"keycloak-{args.keycloak_realm}",
-                "name": f"Keycloak {args.keycloak_realm}",
-                "config": {
-                    "issuer": f"{args.keycloak_url}/realms/{args.keycloak_realm}",
-                    "clientID": client_id,
-                    "clientSecret": client_secret,
-                    "redirectURI": f"{dex_issuer}/callback",
-                    "scopes": ["openid", "profile", "email", "groups"],
-                    "insecureSkipVerify": True,  # À remplacer par false en production
-                    "userIDKey": "sub",
-                    "userNameKey": "preferred_username",
-                    "claimMapping": {
-                        "groups": "groups",
-                        "name": "name",
-                        "email": "email"
-                    }
+        }
+    }
+    
+    # Ajouter staticClients si configuré
+    static_clients = []
+    if args.static_client_id:
+        static_client = {
+            "id": args.static_client_id,
+            "name": args.static_client_name or args.static_client_id.replace('-', ' ').title(),
+            "secret": args.static_client_secret or generate_random_secret()
+        }
+        if args.static_client_redirect_uris:
+            static_client["redirectURIs"] = args.static_client_redirect_uris
+        static_clients.append(static_client)
+    
+    config["staticClients"] = static_clients
+    
+    # Configuration des connectors (toujours une liste)
+    connectors = [
+        {
+            "type": "oidc",
+            "id": f"keycloak",
+            "name": f"Keycloak",
+            "config": {
+                "issuer": f"{args.keycloak_url}/realms/{args.keycloak_realm}",
+                "clientID": client_id,
+                "clientSecret": client_secret,
+                "redirectURI": f"{dex_issuer}/callback",
+                "insecureSkipVerify": True,
+                "claimMapping": {
+                    "groups": args.claim_groups,
+                    "username": args.claim_username,
+                    "email": args.claim_email,
+                    "name": args.claim_name
                 }
-            },
-        "staticClients": []  # Peut être rempli avec des clients statiques si nécessaire
+            }
+        }
+    ]
+    config["connectors"] = connectors
+    
+    # Configuration enablePasswordDB
+    config["enablePasswordDB"] = args.enable_password_db
+    
+    # Configuration OAuth2
+    config["oauth2"] = {
+        "responseTypes": args.oauth_response_types,
+        "skipApprovalScreen": args.oauth_skip_approval_screen
+    }
+    
+    # Configuration des logs
+    config["logger"] = {
+        "level": args.log_level,
+        "format": args.log_format
     }
     
     # Ajouter la configuration TLS si fournie
@@ -140,7 +192,7 @@ def generate_dex_config(args, client_secret):
     
     # Configuration supplémentaire pour des types de stockage spécifiques
     if args.storage_type == "sqlite3" and "file" not in config["storage"]:
-        config["storage"]["file"] = f"/etc/dex/dex-{args.dex_name}.db"
+        config["storage"]["file"] = f"/etc/dex/{args.dex_name}.db"
     
     return config
 
@@ -167,24 +219,54 @@ def main():
     print(f"# Si vous souhaitez utiliser un secret spécifique, ajoutez-le manuellement à la configuration DEX.")
     
     print("\n=== CONFIGURATION DEX ===")
-    print("# Enregistrez cette configuration dans un fichier config.yaml pour DEX:")
-    print(yaml.dump(dex_config, default_flow_style=False))
     
-    print("\n=== COMMANDES DOCKER ===")
-    print("# Pour démarrer un conteneur DEX avec cette configuration:")
-    print(f"docker run -d \\")
-    print(f"  --name dex-{args.dex_name} \\")
-    print(f"  --network {docker_network} \\")  # Ajout du réseau Docker
-    print(f"  -p {args.dex_port}:{args.dex_port} \\")
-    print(f"  -v /chemin/vers/config.yaml:/etc/dex/config.yaml \\")
-    if args.dex_tls_cert and args.dex_tls_key:
-        print(f"  -v /chemin/vers/cert:/etc/dex/tls.crt \\")
-        print(f"  -v /chemin/vers/key:/etc/dex/tls.key \\")
-    print(f"  quay.io/dexidp/dex:latest \\")
-    print(f"  dex serve /etc/dex/config.yaml")
+    # Sauvegarder dans un fichier si spécifié
+    if args.file:
+        # Créer le répertoire parent si nécessaire
+        output_dir = os.path.dirname(args.file)
+        if output_dir and not os.path.exists(output_dir):
+            os.makedirs(output_dir)
+            print(f"# Répertoire créé: {output_dir}")
+        
+        # Écrire la configuration dans le fichier
+        with open(args.file, 'w') as f:
+            yaml.dump(dex_config, f, default_flow_style=False)
+        print(f"# Configuration DEX sauvegardée dans: {args.file}")
+        
+        # Mettre à jour les commandes Docker pour utiliser le bon chemin
+        config_volume_path = os.path.abspath(args.file)
+        print(f"\n# Pour démarrer DEX avec cette configuration:")
+        print(f"docker run -d \\")
+        print(f"  --name {args.dex_name} \\")
+        print(f"  --network {docker_network} \\")
+        print(f"  -p {args.dex_port}:{args.dex_port} \\")
+        print(f"  -v {config_volume_path}:/etc/dex/config.yaml \\")
+        if args.dex_tls_cert and args.dex_tls_key:
+            print(f"  -v /chemin/vers/cert:/etc/dex/tls.crt \\")
+            print(f"  -v /chemin/vers/key:/etc/dex/tls.key \\")
+        print(f"  ghcr.io/dexidp/dex:v2.37.0 \\")
+        print(f"  dex serve /etc/dex/config.yaml")
+    else:
+        print("# Enregistrez cette configuration dans un fichier config.yaml pour DEX:")
+        print(yaml.dump(dex_config, default_flow_style=False))
+    
+    if not args.file:
+        print("\n=== COMMANDES DOCKER ===")
+        print("# Pour démarrer un conteneur DEX avec cette configuration:")
+        print(f"docker run -d \\")
+        print(f"  --name {args.dex_name} \\")
+        print(f"  --network {docker_network} \\")
+        print(f"  -p {args.dex_port}:{args.dex_port} \\")
+        print(f"  -v /chemin/vers/config.yaml:/etc/dex/config.yaml \\")
+        if args.dex_tls_cert and args.dex_tls_key:
+            print(f"  -v /chemin/vers/cert:/etc/dex/tls.crt \\")
+            print(f"  -v /chemin/vers/key:/etc/dex/tls.key \\")
+        print(f"  ghcr.io/dexidp/dex:v2.37.0 \\")
+        print(f"  dex serve /etc/dex/config.yaml")
     
     print(f"\n# Note: Le réseau Docker '{docker_network}' sera utilisé pour la communication avec Keycloak.")
     print("# Si le réseau n'existe pas, créez-le avec: docker network create " + docker_network)
+
     
     return 0
 

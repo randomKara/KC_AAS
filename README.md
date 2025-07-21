@@ -1,165 +1,254 @@
-# KC_AAS : Authentification centralisée avec Keycloak et Dex
+# KC_AAS: Centralized Authentication with Keycloak and Dex
 
-Ce projet met en place une solution d'authentification centralisée en utilisant Keycloak comme fournisseur d'identité et Dex comme passerelle OIDC. Une application Flask est utilisée pour démontrer l'intégration.
+This project implements a centralized authentication solution using Keycloak as the identity provider and Dex as an OIDC gateway. A Flask application is used to demonstrate the integration.
 
 ## Architecture
 
-*   **Keycloak :** Gère les utilisateurs, les rôles et les autorisations.
-*   **Dex :** Agit comme un serveur OIDC, fédérant Keycloak et l'application Flask (lancé à la demande).
-*   **Flask App :** Une application simple qui utilise Dex pour authentifier les utilisateurs.
+- **Keycloak**: Identity provider that manages users, roles, and permissions
+- **Dex**: OIDC server that federates Keycloak and client applications
+- **Flask App**: Sample application demonstrating authentication integration
 
-## Prérequis
+## Prerequisites
 
-*   Docker
-*   docker compose
-*   curl (pour les vérifications de santé)
+- Docker
+- Docker Compose
+- Python 3.x
 
-## Installation et Démarrage
+## Installation and Setup
 
-### 1. Préparation
+### 1. Preparation
 
-1.  Clonez le dépôt.
-2.  Ajoutez les lignes suivantes à votre fichier `/etc/hosts` :
+1. Clone the repository
+2. Add the following lines to your `/etc/hosts` file:
 
-    ```
-    127.0.0.1 keycloak
-    ```
-
-### 2. Démarrage de Keycloak
-
-Démarrez d'abord Keycloak (le fournisseur d'identité principal) :
-
-```bash
-docker compose up keycloak -d
+```
+127.0.0.1 keycloak
+127.0.0.1 dex
 ```
 
-Attendez que Keycloak soit complètement démarré (environ 1-2 minutes).
+### 2. Start Keycloak & Flask Application
 
-### 3. Lancement de Dex (à la demande)
-
-Utilisez le script dédié pour lancer Dex quand vous en avez besoin :
+Start Keycloak (the main identity provider) first:
 
 ```bash
-./scripts/run_dex.sh
+docker compose up -d
 ```
 
-Ce script :
-- Vérifie que Keycloak est accessible
-- Lance Dex en tant que conteneur Docker standalone
-- Attend que Dex soit prêt
-- Fournit des informations détaillées sur le processus
+Wait for Keycloak to be fully started (approximately 1-2 minutes).
 
-### 4. Démarrage de l'application Flask
+### 3. Configure and Launch Dex
 
-Une fois Dex en cours d'exécution, démarrez l'application Flask :
+#### Generate Dex Configuration
+
+Use the `create_dex_config.py` script to generate the Dex configuration and register the client in Keycloak:
 
 ```bash
-docker compose up flask-app
+cd scripts/
+
+python3 create_dex_config.py \
+  --dex-name dex \
+  --dex-issuer-url http://dex:5556 \
+  --keycloak-url http://keycloak:8080 \
+  --static-client-id flask-app \
+  --static-client-name "Flask App" \
+  --static-client-secret flask-app-secret \
+  --static-client-redirect-uris http://localhost:5000/callback \
+  --oauth-skip-approval-screen \
+  --file ../dex/config.yaml
 ```
 
-## Configuration
+#### create_dex_config.py - Complete Arguments Reference
 
-*   **Dex :** Configuration dans `dex/config.yaml` (mode standalone)
-*   **Keycloak :** Importation automatique du realm depuis `keycloak/imports/realm-export.json`
-*   **Flask :** Configuration via variables d'environnement dans `docker-compose.yml`
+The `create_dex_config.py` script supports extensive configuration options:
 
-## Utilisation
+##### Required Arguments
 
-1.  **Démarrez les services dans l'ordre :**
-    - Keycloak : `docker compose up keycloak -d`
-    - Dex : `./scripts/run_dex.sh`
-    - Flask : `docker compose up flask-app`
+- `--dex-name`: Name of the DEX broker (used for identifiers) - **Required**
 
-2.  **Accédez à l'application :**
-    - Application Flask : `http://localhost:5000`
-    - Interface Keycloak : `http://localhost:8080` (admin/admin)
+##### DEX Configuration Arguments
 
-3.  **Processus d'authentification :**
-    - Cliquez sur "Se connecter" dans l'application Flask
-    - Vous serez redirigé vers Dex
-    - Choisissez "Keycloak" comme fournisseur d'identité
-    - Connectez-vous avec un utilisateur du realm KC_AAS
+- `--dex-port`: DEX listening port (default: 5556)
+- `--dex-host`: DEX listening host (default: 0.0.0.0)
+- `--dex-issuer-url`: Public DEX URL (default: http://HOSTNAME:PORT)
+- `--dex-tls-cert`: Path to TLS certificate (optional)
+- `--dex-tls-key`: Path to TLS key (optional)
 
-## Gestion de Dex
+##### Keycloak (IdP) Arguments
 
-### Lancer Dex
+- `--keycloak-url`: Keycloak URL (default: http://localhost:8080)
+- `--keycloak-realm`: Keycloak realm (default: KC_AAS)
+- `--keycloak-admin-user`: Keycloak admin username (default: admin)
+- `--keycloak-admin-password`: Keycloak admin password (default: admin)
+
+##### Client Configuration Arguments
+
+- `--client-id`: Client ID for Keycloak registration (default: uses dex-name)
+- `--client-secret`: Client secret (randomly generated if not provided)
+
+##### Static Client Arguments
+
+- `--static-client-id`: Static client ID (e.g., flask-app)
+- `--static-client-name`: Static client display name (e.g., "Flask App")
+- `--static-client-secret`: Static client secret
+- `--static-client-redirect-uris`: Redirect URIs for the static client (can specify multiple)
+
+##### Security and OAuth2 Arguments
+
+- `--oauth-skip-approval-screen`: Skip OAuth approval screen (flag)
+- `--session-expiry`: Session expiration duration (default: 24h, e.g., 30m, 2h)
+- `--oauth-response-types`: OAuth2 response types (default: code, token, id_token)
+- `--enable-password-db`: Enable local password database (flag)
+
+##### Storage Configuration Arguments
+
+- `--storage-type`: Storage type (choices: memory, sqlite3, postgres, mysql, default: memory)
+- `--storage-config`: JSON configuration for storage (depends on type)
+
+##### Logging Arguments
+
+- `--log-level`: Log level (choices: debug, info, warn, error, default: debug)
+- `--log-format`: Log format (choices: text, json, default: text)
+
+##### Claims Mapping Arguments
+
+- `--claim-groups`: Claim name for groups (default: groups)
+- `--claim-username`: Claim name for username (default: preferred_username)
+- `--claim-email`: Claim name for email (default: email)
+- `--claim-name`: Claim name for full name (default: name)
+
+##### Docker and Output Arguments
+
+- `--docker-network`: Docker network name (default: auth-network)
+- `--file`: Output file for saving YAML configuration (e.g., dex/config.yaml)
+
+#### Example Usage Scenarios
+
+##### Basic Configuration
 ```bash
-./scripts/run_dex.sh
+python3 scripts/create_dex_config.py --dex-name my-dex
 ```
 
-### Arrêter Dex
+##### Production Configuration with TLS
 ```bash
-./scripts/stop_dex.sh
+python3 scripts/create_dex_config.py \
+  --dex-name production-dex \
+  --dex-port 443 \
+  --dex-issuer-url https://dex.mydomain.com \
+  --dex-tls-cert /path/to/cert.pem \
+  --dex-tls-key /path/to/key.pem \
+  --keycloak-url https://keycloak.mydomain.com \
+  --storage-type sqlite3 \
+  --log-level info \
+  --file dex/config.yaml
 ```
 
-### Voir les logs de Dex
+##### Configuration with Custom Storage
 ```bash
-docker logs -f kc_aas_dex
+python3 scripts/create_dex_config.py \
+  --dex-name postgres-dex \
+  --storage-type postgres \
+  --storage-config '{"host":"postgres","port":5432,"user":"dex","password":"secret","database":"dex","ssl":"require"}' \
+  --file dex/config.yaml
 ```
 
-## Avantages de cette Architecture
+#### Register Client in Keycloak
 
-**Dex à la demande :**
-- **Contrôle granulaire :** Lancez Dex uniquement quand nécessaire
-- **Débogage facilité :** Logs isolés et configuration explicite
-- **Flexibilité :** Possibilité de modifier la configuration sans affecter les autres services
-- **Performance :** Économie de ressources quand Dex n'est pas nécessaire
-
-**Séparation des responsabilités :**
-- **Keycloak :** Gestion des utilisateurs et des identités (service permanent)
-- **Dex :** Broker OIDC pour l'application (service à la demande)
-- **Flask :** Application cliente démonstrative
-
-## Proof of Work - Démonstration Automatisée
-
-### Démarrage Rapide (Recommandé)
-
-Pour une démonstration complète automatisée utilisant tous les scripts Python :
+After running the script, execute the displayed Keycloak registration command to register the client:
 
 ```bash
-# Installation des dépendances Python
-pip3 install -r requirements.txt
-
-# Démarrage complet automatisé
-./scripts/quick_start.sh
+# The script will output a command similar to:
+python3 scripts/create_client_in_kc_aas.py \
+    --client-id dex \
+    --client-name "DEX Broker dex" \
+    --redirect-uris "http://dex:5556/callback" "http://dex:5556/login/callback" \
+    --root-url "http://dex:5556" \
+    --base-url "http://dex:5556" \
+    --keycloak-url "http://keycloak:8080" \
+    --admin-user "admin" \
+    --admin-password "admin" \
+    --realm "KC_AAS" \
+    --quiet
+    --cliient-secret "the secret given in dex config"
 ```
 
-### Démonstration Détaillée
+#### Launch Dex Container
 
-Pour une démonstration pas-à-pas avec explications :
+After configuration, launch Dex using the provided Docker command:
 
 ```bash
-# Démarrer Keycloak
-docker compose up keycloak -d
-
-# Lancer la démonstration proof of work
-python3 scripts/demo_proof_of_work.py --verbose
-
-# Ou avec un utilisateur personnalisé
-python3 scripts/demo_proof_of_work.py --user-name mon-utilisateur --user-password mon-mot-de-passe
+docker run -d \
+  --name dex \
+  --network auth-network \
+  -p 5556:5556 \
+  -v $(pwd)/../dex/config.yaml:/etc/dex/config.yaml \
+  ghcr.io/dexidp/dex:v2.37.0 \
+  dex serve /etc/dex/config.yaml
 ```
 
-### Scripts Python Disponibles
+For TLS configurations, add the certificate volumes:
 
-Le projet inclut plusieurs scripts Python pour automatiser la configuration :
+```bash
+docker run -d \
+  --name dex \
+  --network auth-network \
+  -p 443:443 \
+  -v $(pwd)/../dex/config.yaml:/etc/dex/config.yaml \
+  -v /path/to/cert:/etc/dex/tls.crt \
+  -v /path/to/key:/etc/dex/tls.key \
+  ghcr.io/dexidp/dex:v2.37.0 \
+  dex serve /etc/dex/config.yaml
+```
 
-- **`create_user_in_kc_aas.py`** : Création d'utilisateurs dans Keycloak
-- **`create_client_in_kc_aas.py`** : Configuration de clients OIDC dans Keycloak
-- **`create_dex_config.py`** : Génération automatique de configuration Dex
-- **`list_all_users.py`** : Listage des utilisateurs existants
-- **`demo_proof_of_work.py`** : Démonstration complète end-to-end
+## Usage
 
-### Avantages de la Proof of Work Automatisée
+### Access the Applications
 
-- **Configuration automatique** : Création automatique des utilisateurs et clients
-- **Validation end-to-end** : Vérification que tous les composants fonctionnent ensemble
-- **Débogage facilité** : Logs détaillés et messages d'erreur explicites
-- **Reproductibilité** : Configuration identique à chaque exécution
-- **Documentation vivante** : Le code sert de documentation des intégrations
+1. **Flask App**: http://localhost:5000
+2. **Keycloak Admin**: http://localhost:8080/admin (admin/admin)
+3. **Dex**: http://localhost:5556/.well-known/openid_configuration
 
-## Endpoints Utiles
+### Authentication Flow
 
-- **Application Flask :** `http://localhost:5000`
-- **Discovery OIDC (Dex) :** `http://localhost:5556/dex/.well-known/openid-configuration`
-- **Interface Keycloak :** `http://localhost:8080`
-- **Health Check Flask :** `http://localhost:5000/health`
+1. Navigate to the Flask application
+2. Click "Login" to initiate authentication
+3. You'll be redirected to Dex, then to Keycloak
+4. Enter your Keycloak credentials
+5. After successful authentication, you'll be redirected back to the Flask app
+
+### Default Credentials
+
+- **Keycloak Admin**: admin/admin
+- **Test User**: user/password (created during realm import)
+
+## Troubleshooting
+
+### Common Issues
+
+1. **Connection Refused**: Ensure all containers are running and accessible
+2. **Certificate Errors**: Check TLS configuration and certificate paths
+3. **Authentication Failures**: Verify client registration and secrets match
+4. **Port Conflicts**: Ensure ports 5000, 5556, and 8080 are available
+
+### Checking Container Status
+
+```bash
+# Check all containers
+docker ps
+
+# Check Keycloak logs
+docker logs keycloak
+
+# Check Dex logs
+docker logs dex
+
+# Check Flask app logs
+docker logs flask-app
+```
+
+## Security Considerations
+
+- Change default passwords in production
+- Use proper TLS certificates
+- Configure proper network security
+- Review and adjust token expiration times
+- Enable appropriate logging for audit trails
